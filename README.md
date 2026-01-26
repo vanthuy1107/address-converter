@@ -332,6 +332,86 @@ print(data)
 [{'province': 'Thủ đô Hà Nội', 'ward': 'Phường Hồng Hà'}, {'province': 'Thủ đô Hà Nội', 'ward': 'Phường Ba Đình'}, {'province': 'Thủ đô Hà Nội', 'ward': 'Phường Ngọc Hà'}, {'province': 'Thủ đô Hà Nội', 'ward': 'Phường Giảng Võ'}, {'province': 'Thủ đô Hà Nội', 'ward': 'Phường Hoàn Kiếm'}]
 ```
 
+### 📋 Batch Address Processing (`main.py`)
+
+The repository includes a comprehensive batch processing script (`main.py`) for processing large Excel files containing addresses. This script provides automated cleaning, parsing, validation, and conversion of addresses with extensive configuration options.
+
+#### Features
+
+- **Multiple Processing Modes**: `STRICT`, `NORMAL`, `LENIENT`, or `CONVERT`
+- **Intelligent Parsing**: Supports `LEGACY` (63-province), `FROM_2025` (34-province), or `HYBRID` mode
+- **Address Cleaning**: Automatically removes phone numbers, metadata, and unwanted patterns
+- **Validation**: Configurable validation rules (province, ward, coordinates, etc.)
+- **Province Matching**: Prevents wrong province matches by validating against explicit province names in addresses
+- **Excel Output**: Generates separate sheets for valid and skipped addresses
+- **Progress Tracking**: Shows processing progress and generates statistics
+
+#### Quick Start
+
+1. **Configure settings** in `config.py`:
+   ```python
+   INPUT_FILE = "path/to/your/file.xlsx"
+   ADDRESS_COLUMN = "Địa chỉ giao hàng"  # Your address column name
+   PROCESSING_MODE = ProcessingMode.STRICT  # or CONVERT, NORMAL, LENIENT
+   PARSER_MODE = 'FROM_2025'  # or 'LEGACY', 'HYBRID'
+   ```
+
+2. **Run the script**:
+   ```shell
+   python main.py
+   ```
+
+3. **Check results** in the `output/` folder:
+   - `PROCESSED_addresses.xlsx` - Excel file with separate sheets for valid and skipped addresses
+   - Contains parsed addresses with province, ward, coordinates, and more
+
+#### Processing Modes
+
+- **STRICT**: Only complete, validated addresses (recommended for high-quality data)
+- **NORMAL**: Balanced approach with moderate validation
+- **LENIENT**: Maximum coverage with minimal validation
+- **CONVERT**: Converts old (63-province) addresses to new (34-province) system, tracks both old and new addresses
+
+#### Configuration Options
+
+Key settings in `config.py`:
+
+- **File Settings**: `INPUT_FILE`, `ADDRESS_COLUMN`, `SHEET_NAME`, `OUTPUT_DIR`
+- **Processing Settings**: `PROCESSING_MODE`, `PARSER_MODE`, `USE_HYBRID_MODE`, `KEEP_STREET`
+- **Validation Rules**: `REQUIRE_PROVINCE`, `REQUIRE_WARD`, `REQUIRE_COORDINATES`, `MIN_COMMA_COUNT`
+- **Cleaning Rules**: `PHONE_PATTERNS`, `NAME_PREFIXES`, `METADATA_PATTERNS`, `WAREHOUSE_PATTERNS`
+- **Output Settings**: `OUTPUT_COLUMNS`, `PASSTHROUGH_COLUMNS`, `COLUMN_RENAME_MAP`, `CREATE_SEPARATE_SHEETS`
+
+#### Output Format
+
+The script generates an Excel file with:
+
+- **Valid Addresses** sheet: Successfully parsed addresses with:
+  - Original address
+  - Parsed province, ward, street
+  - Full standardized address
+  - Coordinates (latitude, longitude)
+  - Old address fields (in CONVERT mode)
+  
+- **Skipped Addresses** sheet: Addresses that couldn't be processed with skip reasons
+
+#### Advanced Features
+
+- **Hybrid Mode**: Automatically tries both LEGACY and FROM_2025 parsers, scoring results to select the best match
+- **Province Validation**: Extracts explicit province names from addresses and validates parser results to prevent wrong matches
+- **Custom Rules**: Add custom cleaning patterns, validation rules, and skip patterns in `config.py`
+- **Passthrough Columns**: Preserve original columns from input file in output
+- **Column Renaming**: Automatically rename output columns using `COLUMN_RENAME_MAP`
+
+#### Example Output
+
+After processing, you'll get:
+- Parsed addresses in standardized format
+- Province names (without "Tỉnh" or "Thành phố" prefixes)
+- Ward/commune names
+- Coordinates for mapping
+- Statistics on success rate, missing wards, etc.
+
 ## My Approach
 
 ### 🛠️ Dataset Preparation
