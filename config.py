@@ -14,6 +14,7 @@ class ProcessingMode(Enum):
     NORMAL = "normal"  # Process all parseable addresses
     LENIENT = "lenient"  # Try to process everything
     CONVERT = "convert"  # Convert old addresses to new 2025 system (handles mergers)
+    CONVERT_TO_LEGACY = "convert_to_legacy"  # Convert new (34-province) addresses to old (63-province) system
 
 
 # ============================================================================
@@ -33,11 +34,12 @@ OUTPUT_DIR = "output"  # Directory for output files (created if doesn't exist)
 # PROCESSING SETTINGS
 # ============================================================================
 
-# Processing mode: STRICT (recommended), NORMAL, LENIENT, or CONVERT
+# Processing mode: STRICT (recommended), NORMAL, LENIENT, CONVERT, or CONVERT_TO_LEGACY
 # - STRICT: Only complete, validated addresses (keeps OLD system with districts)
 # - NORMAL: Balanced approach
 # - LENIENT: Maximum coverage
-# - CONVERT: Convert old addresses to new 2025 system (handles mergers, tracks OLD+NEW)
+# - CONVERT: Convert old (63-province) addresses to new 2025 (34-province) system (handles mergers, tracks OLD+NEW)
+# - CONVERT_TO_LEGACY: Convert new (34-province) addresses to old (63-province) system (tracks NEW+OLD)
 # NOTE: CONVERT mode fails for addresses without diacritics because it uses LEGACY mode first
 #       which may misinterpret districts as wards. Use STRICT with FROM_2025 for better results.
 PROCESSING_MODE = ProcessingMode.STRICT  # Use STRICT mode with LEGACY parser to avoid wrong province matches
@@ -167,6 +169,12 @@ OUTPUT_COLUMNS = [
     'old_ward',
     'old_latitude',
     'old_longitude',
+    # NEW address fields (populated in CONVERT_TO_LEGACY mode - input 34-province)
+    'new_full_address',
+    'new_province',
+    'new_ward',
+    'new_latitude',
+    'new_longitude',
 ]
 
 # Additional original columns from the input file to keep in outputs
@@ -189,6 +197,12 @@ COLUMN_RENAME_MAP = {
     'old_ward': 'Old Ward/Commune',
     'old_latitude': 'Old Latitude',
     'old_longitude': 'Old Longitude',
+    # NEW address rename mapping (CONVERT_TO_LEGACY mode)
+    'new_full_address': 'Input Address (2025)',
+    'new_province': 'Input Province/City',
+    'new_ward': 'Input Ward/Commune',
+    'new_latitude': 'Input Latitude',
+    'new_longitude': 'Input Longitude',
 }
 
 # Create separate sheets in Excel output
@@ -291,7 +305,8 @@ def get_mode_description():
         ProcessingMode.STRICT: "Only complete, validated addresses",
         ProcessingMode.NORMAL: "All parseable addresses",
         ProcessingMode.LENIENT: "Maximum coverage, minimal validation",
-        ProcessingMode.CONVERT: "Convert old addresses to new 2025 system (handles mergers)"
+        ProcessingMode.CONVERT: "Convert old addresses to new 2025 system (handles mergers)",
+        ProcessingMode.CONVERT_TO_LEGACY: "Convert new (34-province) addresses to old (63-province) system",
     }
     return descriptions.get(PROCESSING_MODE, "Unknown mode")
 
@@ -300,29 +315,34 @@ def get_mode_description():
 # MODE-SPECIFIC OVERRIDES
 # ============================================================================
 
-if PROCESSING_MODE == ProcessingMode.LENIENT:
-    # Lenient mode: process as much as possible
-    REQUIRE_DISTRICT = False
-    MIN_COMMA_COUNT = 0
-    REJECT_BUILDING_ONLY = False
-    
-elif PROCESSING_MODE == ProcessingMode.NORMAL:
-    # Normal mode: balanced approach
-    REQUIRE_DISTRICT = True
-    MIN_COMMA_COUNT = 1
-    REJECT_BUILDING_ONLY = True
-    
-elif PROCESSING_MODE == ProcessingMode.STRICT:
-    # Strict mode: highest quality - require province + ward
-    REQUIRE_DISTRICT = False
-    REQUIRE_WARD = False  # Set to False to include addresses with province but no ward
-    MIN_COMMA_COUNT = 2
-    REJECT_BUILDING_ONLY = True
+def apply_mode_overrides():
+    """Apply settings for current PROCESSING_MODE. Call after changing PROCESSING_MODE (e.g. from entry scripts)."""
+    global REQUIRE_DISTRICT, REQUIRE_WARD, MIN_COMMA_COUNT, REJECT_BUILDING_ONLY
+    if PROCESSING_MODE == ProcessingMode.LENIENT:
+        REQUIRE_DISTRICT = False
+        MIN_COMMA_COUNT = 0
+        REJECT_BUILDING_ONLY = False
+    elif PROCESSING_MODE == ProcessingMode.NORMAL:
+        REQUIRE_DISTRICT = True
+        MIN_COMMA_COUNT = 1
+        REJECT_BUILDING_ONLY = True
+    elif PROCESSING_MODE == ProcessingMode.STRICT:
+        REQUIRE_DISTRICT = False
+        REQUIRE_WARD = False
+        MIN_COMMA_COUNT = 2
+        REJECT_BUILDING_ONLY = True
+    elif PROCESSING_MODE == ProcessingMode.CONVERT:
+        REQUIRE_DISTRICT = False
+        REQUIRE_WARD = True
+        MIN_COMMA_COUNT = 2
+        REJECT_BUILDING_ONLY = True
+    elif PROCESSING_MODE == ProcessingMode.CONVERT_TO_LEGACY:
+        REQUIRE_DISTRICT = False
+        REQUIRE_WARD = True
+        MIN_COMMA_COUNT = 2
+        REJECT_BUILDING_ONLY = True
 
-elif PROCESSING_MODE == ProcessingMode.CONVERT:
-    # Convert mode: require BOTH province and ward in result
-    REQUIRE_DISTRICT = False
-    REQUIRE_WARD = True  # Must have ward in final result
-    MIN_COMMA_COUNT = 2
-    REJECT_BUILDING_ONLY = True
+
+# Apply overrides at load time (for default PROCESSING_MODE)
+apply_mode_overrides()
 

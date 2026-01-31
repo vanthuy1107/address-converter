@@ -1,15 +1,13 @@
 # -*- coding: utf-8 -*-
 """
-Address Processing Main Script
-Reusable address processor that learns and improves over time.
+Shared address processing core.
+Used by main_convert_to_2025.py (old→new) and main_convert_to_legacy.py (new→old).
 
-Usage:
-    python main.py
-    
-To customize processing:
-    1. Edit config.py for settings and rules
-    2. Add custom rules in custom_rules.py (optional)
-    3. Run this script
+Do not run this file directly for conversion; use:
+  python main_convert_to_2025.py   — convert old (63-province) to new (34-province)
+  python main_convert_to_legacy.py — convert new (34-province) to old (63-province)
+
+To customize: edit config.py for settings and rules.
 """
 import pandas as pd
 import sys
@@ -278,13 +276,19 @@ def parse_and_process_address(address_text: str) -> Dict:
         'parsed_full_address': None,
         'latitude': None,
         'longitude': None,
-        # OLD address info (for CONVERT mode)
+        # OLD address info (for CONVERT mode: old→new)
         'old_province': None,
         'old_district': None,
         'old_ward': None,
         'old_full_address': None,
         'old_latitude': None,
         'old_longitude': None,
+        # NEW address info (for CONVERT_TO_LEGACY mode: new→old, input 34-province)
+        'new_province': None,
+        'new_ward': None,
+        'new_full_address': None,
+        'new_latitude': None,
+        'new_longitude': None,
         'parse_success': False,
         'parse_mode': None,
         'skip_reason': None
@@ -298,7 +302,7 @@ def parse_and_process_address(address_text: str) -> Dict:
         result['skip_reason'] = "Address could not be cleaned (empty or should be skipped)"
         return result
     
-    # Check if CONVERT mode
+    # Check if CONVERT mode (old→new)
     if config.PROCESSING_MODE == config.ProcessingMode.CONVERT:
         # Use CONVERT_2025 mode
         try:
@@ -383,6 +387,60 @@ def parse_and_process_address(address_text: str) -> Dict:
         except Exception as e:
             result['skip_reason'] = f"Conversion error: {str(e)}"
         
+        return result
+    
+    # Check if CONVERT_TO_LEGACY mode (new→old)
+    if config.PROCESSING_MODE == config.ProcessingMode.CONVERT_TO_LEGACY:
+        try:
+            converted = convert_address(cleaned, mode=ConvertMode.CONVERT_LEGACY)
+            # converted = OLD (63-province) AdminUnit; converted.NewAdminUnit = input (34-province)
+            is_valid = True
+            reason = None
+            if not converted or not converted.province:
+                is_valid = False
+                reason = "No province in converted (legacy) address"
+            elif config.REQUIRE_WARD and not converted.ward:
+                is_valid = False
+                reason = "No ward in converted (legacy) address - address incomplete"
+            elif config.REQUIRE_COORDINATES:
+                if not converted.latitude or not converted.longitude:
+                    is_valid = False
+                    reason = "No coordinates in converted (legacy) address"
+                elif not config.ALLOW_ZERO_COORDINATES:
+                    if converted.latitude == 0.0 or converted.longitude == 0.0:
+                        is_valid = False
+                        reason = "Invalid coordinates (0.0) in converted (legacy) address"
+            if is_valid:
+                # OLD address (63-province) - the converted result
+                result['parsed_province'] = _remove_province_prefix(converted.province)
+                result['parsed_district'] = _remove_province_prefix(converted.district) if converted.district else None
+                result['parsed_ward'] = converted.ward
+                result['parsed_street'] = converted.street
+                result['parsed_full_address'] = converted.get_address(short_name=False)
+                result['latitude'] = converted.latitude
+                result['longitude'] = converted.longitude
+                # NEW address (34-province) - the input
+                if hasattr(converted, 'NewAdminUnit') and converted.NewAdminUnit:
+                    new_unit = converted.NewAdminUnit
+                    result['new_province'] = new_unit.province
+                    result['new_ward'] = new_unit.ward
+                    address_parts = []
+                    if new_unit.street:
+                        address_parts.append(new_unit.street)
+                    if new_unit.ward:
+                        address_parts.append(new_unit.ward)
+                    if new_unit.province:
+                        address_parts.append(new_unit.province)
+                    result['new_full_address'] = ', '.join(address_parts) if address_parts else new_unit.get_address(short_name=False)
+                    result['new_latitude'] = new_unit.latitude
+                    result['new_longitude'] = new_unit.longitude
+                result['parse_success'] = True
+                result['parse_mode'] = 'CONVERT_LEGACY'
+                result['skip_reason'] = None
+            else:
+                result['skip_reason'] = reason
+        except Exception as e:
+            result['skip_reason'] = f"Conversion error: {str(e)}"
         return result
     
     # CRITICAL FIX: Extract explicit province from address to validate against parser results
@@ -757,6 +815,11 @@ def save_outputs(df_output: pd.DataFrame, df_results: pd.DataFrame, base_name: s
             for col in old_cols:
                 if col in valid_clean.columns and valid_clean[col].isna().all():
                     valid_clean = valid_clean.drop(columns=[col])
+            # Remove NEW columns if they're all empty (not in CONVERT_TO_LEGACY mode)
+            new_cols = ['new_province', 'new_ward', 'new_full_address', 'new_latitude', 'new_longitude']
+            for col in new_cols:
+                if col in valid_clean.columns and valid_clean[col].isna().all():
+                    valid_clean = valid_clean.drop(columns=[col])
             
             # Reset STT index (1, 2, 3, ...) - must do this BEFORE renaming
             if 'STT' in valid_clean.columns:
@@ -818,7 +881,7 @@ def save_summary(df_results: pd.DataFrame, base_name: str):
         for idx, row in df_results[df_results['parse_success']].head(config.SUMMARY_SAMPLE_COUNT).iterrows():
             f.write(f"\nOriginal: {row['original_address']}\n")
             
-            # Check if CONVERT mode (has old address info)
+            # Check if CONVERT mode (old→new, has old address info)
             if pd.notna(row.get('old_province')):
                 f.write(f"\nNEW Address (2025): {row['parsed_full_address']}\n")
                 f.write(f"  Province: {row['parsed_province']}\n")
@@ -835,6 +898,21 @@ def save_summary(df_results: pd.DataFrame, base_name: str):
                 if pd.notna(row['old_ward']):
                     f.write(f"  Ward: {row['old_ward']}\n")
                 f.write(f"  Coordinates: {row['old_latitude']}, {row['old_longitude']}\n")
+            # Check if CONVERT_TO_LEGACY mode (new→old, has new/input address info)
+            elif pd.notna(row.get('new_province')):
+                f.write(f"\nInput Address (2025): {row['new_full_address']}\n")
+                f.write(f"  Province: {row['new_province']}\n")
+                if pd.notna(row.get('new_ward')):
+                    f.write(f"  Ward: {row['new_ward']}\n")
+                f.write(f"  Coordinates: {row['new_latitude']}, {row['new_longitude']}\n")
+                
+                f.write(f"\nConverted (Before 2025): {row['parsed_full_address']}\n")
+                f.write(f"  Province: {row['parsed_province']}\n")
+                if pd.notna(row['parsed_district']):
+                    f.write(f"  District: {row['parsed_district']}\n")
+                if pd.notna(row['parsed_ward']):
+                    f.write(f"  Ward: {row['parsed_ward']}\n")
+                f.write(f"  Coordinates: {row['latitude']}, {row['longitude']}\n")
             else:
                 # Standard parsing (not CONVERT mode) - Post-2025 model: only province and ward
                 f.write(f"Parsed: {row['parsed_full_address']}\n")

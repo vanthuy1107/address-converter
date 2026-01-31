@@ -332,17 +332,22 @@ print(data)
 [{'province': 'Thủ đô Hà Nội', 'ward': 'Phường Hồng Hà'}, {'province': 'Thủ đô Hà Nội', 'ward': 'Phường Ba Đình'}, {'province': 'Thủ đô Hà Nội', 'ward': 'Phường Ngọc Hà'}, {'province': 'Thủ đô Hà Nội', 'ward': 'Phường Giảng Võ'}, {'province': 'Thủ đô Hà Nội', 'ward': 'Phường Hoàn Kiếm'}]
 ```
 
-### 📋 Batch Address Processing (`main.py`)
+### 📋 Batch Address Processing (two scripts)
 
-The repository includes a comprehensive batch processing script (`main.py`) for processing large Excel files containing addresses. This script provides automated cleaning, parsing, validation, and conversion of addresses with extensive configuration options.
+The repository includes two entry scripts for batch processing Excel files:
+
+| Script | Feature |
+|--------|--------|
+| **`main_convert_to_2025.py`** | Convert **old** (63-province, before 2025) → **new** (34-province, after 2025) |
+| **`main_convert_to_legacy.py`** | Convert **new** (34-province, after 2025) → **old** (63-province, before 2025) |
+
+Both use the shared core `run_address_processing.py` and the same config (`config.py`). You run the script that matches the conversion you need.
 
 #### Features
 
-- **Multiple Processing Modes**: `STRICT`, `NORMAL`, `LENIENT`, or `CONVERT`
-- **Intelligent Parsing**: Supports `LEGACY` (63-province), `FROM_2025` (34-province), or `HYBRID` mode
-- **Address Cleaning**: Automatically removes phone numbers, metadata, and unwanted patterns
+- **Two conversion directions**: old→new and new→old in separate scripts
+- **Address Cleaning**: Removes phone numbers, metadata, and unwanted patterns
 - **Validation**: Configurable validation rules (province, ward, coordinates, etc.)
-- **Province Matching**: Prevents wrong province matches by validating against explicit province names in addresses
 - **Excel Output**: Generates separate sheets for valid and skipped addresses
 - **Progress Tracking**: Shows processing progress and generates statistics
 
@@ -352,25 +357,25 @@ The repository includes a comprehensive batch processing script (`main.py`) for 
    ```python
    INPUT_FILE = "path/to/your/file.xlsx"
    ADDRESS_COLUMN = "Địa chỉ giao hàng"  # Your address column name
-   PROCESSING_MODE = ProcessingMode.STRICT  # or CONVERT, NORMAL, LENIENT
-   PARSER_MODE = 'FROM_2025'  # or 'LEGACY', 'HYBRID'
    ```
 
-2. **Run the script**:
+2. **Run the script for your use case**:
    ```shell
-   python main.py
+   # Convert OLD addresses → NEW (34-province)
+   python main_convert_to_2025.py
+
+   # Convert NEW addresses → OLD (63-province)
+   python main_convert_to_legacy.py
    ```
 
 3. **Check results** in the `output/` folder:
    - `PROCESSED_addresses.xlsx` - Excel file with separate sheets for valid and skipped addresses
-   - Contains parsed addresses with province, ward, coordinates, and more
+   - Contains parsed addresses with province, ward, coordinates, and (for conversion) both source and result columns
 
-#### Processing Modes
+#### What each script does
 
-- **STRICT**: Only complete, validated addresses (recommended for high-quality data)
-- **NORMAL**: Balanced approach with moderate validation
-- **LENIENT**: Maximum coverage with minimal validation
-- **CONVERT**: Converts old (63-province) addresses to new (34-province) system, tracks both old and new addresses
+- **main_convert_to_2025.py**: Input = OLD (63-province) addresses. Output = NEW (34-province) in main columns + OLD address in `old_*` columns.
+- **main_convert_to_legacy.py**: Input = NEW (34-province) addresses. Output = OLD (63-province) in main columns + input (NEW) in `new_*` columns.
 
 #### Configuration Options
 
