@@ -22,8 +22,8 @@ class ProcessingMode(Enum):
 # ============================================================================
 
 # Input file settings
-INPUT_FILE = r"C:\Users\smartlogaipc\Downloads\DanhSachDiaDiem_3012250340282934_gfOC8YERESBv0CFx.xlsx"
-ADDRESS_COLUMN = "Địa chỉ giao hàng"  # Column name with addresses to process
+INPUT_FILE = r"C:\Users\Lenovo1\Downloads\Địa chỉ mới_Syngenta.xlsx"
+ADDRESS_COLUMN = "Địa chỉ"  # Column name with addresses to process
 SHEET_NAME = None  # None = first sheet, or specify sheet name
 
 # Output file settings

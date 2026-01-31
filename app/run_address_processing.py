@@ -18,8 +18,11 @@ import time
 from datetime import datetime
 from typing import Dict, Tuple, Optional, List
 
-# Add vietnamadminunits to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'vietnamadminunits'))
+# Ensure project root is on path (app/ is one level below root; config and vietnamadminunits are at root)
+_this_dir = os.path.dirname(os.path.abspath(__file__))
+_project_root = os.path.dirname(_this_dir)
+if _project_root not in sys.path:
+    sys.path.insert(0, _project_root)
 
 from vietnamadminunits import parse_address, ParseMode, convert_address, ConvertMode
 import config
@@ -740,6 +743,51 @@ def process_file(input_file: str = None, address_column: str = None) -> Tuple[pd
 # OUTPUT GENERATION
 # ============================================================================
 
+def _get_column_guide_rows():
+    """Return list of (Column, Meaning) for the Guide sheet based on current processing mode."""
+    if config.PROCESSING_MODE == config.ProcessingMode.CONVERT_TO_LEGACY:
+        return [
+            ("Địa chỉ", "The original address from your input file (raw text from the address column)."),
+            ("New Address", "Converted (old) full address in 63-province format: street + ward + district + province. This is the main result of the conversion."),
+            ("Province/City", "Converted (old) province – province/city name in the 63-province system."),
+            ("District", "Converted (old) district – district in the 63-province system (present because the old system has district)."),
+            ("Ward/Commune", "Converted (old) ward/commune in the 63-province system."),
+            ("latitude", "Latitude of the converted (old) address."),
+            ("longitude", "Longitude of the converted (old) address."),
+            ("Input Address (2025)", "The address as interpreted in the new (34-province) system – i.e. the input (2025) form the converter used before converting to old."),
+            ("Input Province/City", "Province/city in the new (34-province) system (from that input)."),
+            ("Input Ward/Commune", "Ward/commune in the new (34-province) system (from that input)."),
+            ("Input Latitude", "Latitude of the input (34-province) address."),
+            ("Input Longitude", "Longitude of the input (34-province) address."),
+        ]
+    if config.PROCESSING_MODE == config.ProcessingMode.CONVERT:
+        return [
+            ("Địa chỉ", "The original address from your input file (raw text from the address column)."),
+            ("New Address", "Converted (new) full address in 34-province format: street + ward + province (no district). This is the main result of the conversion."),
+            ("Province/City", "Converted (new) province – province/city name in the 34-province system."),
+            ("District", "Empty in this mode – the new (2025) system has no district level."),
+            ("Ward/Commune", "Converted (new) ward/commune in the 34-province system."),
+            ("latitude", "Latitude of the converted (new) address."),
+            ("longitude", "Longitude of the converted (new) address."),
+            ("Old Address (Before 2025)", "The address as interpreted in the old (63-province) system – i.e. the input before converting to new."),
+            ("Old Province/City", "Province/city in the old (63-province) system."),
+            ("Old District", "District in the old (63-province) system."),
+            ("Old Ward/Commune", "Ward/commune in the old (63-province) system."),
+            ("Old Latitude", "Latitude of the old (63-province) address."),
+            ("Old Longitude", "Longitude of the old (63-province) address."),
+        ]
+    # STRICT / NORMAL / LENIENT (parse only, no conversion)
+    return [
+        ("Địa chỉ", "The original address from your input file (raw text from the address column)."),
+        ("New Address", "Parsed full address (street + ward + province)."),
+        ("Province/City", "Parsed province/city name."),
+        ("District", "Parsed district (if present in address and mode supports it)."),
+        ("Ward/Commune", "Parsed ward/commune."),
+        ("latitude", "Latitude of the parsed address."),
+        ("longitude", "Longitude of the parsed address."),
+    ]
+
+
 def save_outputs(df_output: pd.DataFrame, df_results: pd.DataFrame, base_name: str = "addresses"):
     """
     Save processing results to Excel file only.
@@ -769,6 +817,10 @@ def save_outputs(df_output: pd.DataFrame, df_results: pd.DataFrame, base_name: s
     excel_file = config.get_output_filepath(base_name, "xlsx")
     with pd.ExcelWriter(excel_file, engine='openpyxl') as writer:
         if config.CREATE_SEPARATE_SHEETS:
+            # Guide sheet (first sheet) – column meanings for current mode
+            guide_rows = _get_column_guide_rows()
+            df_guide = pd.DataFrame(guide_rows, columns=["Column", "Meaning"])
+            df_guide.to_excel(writer, sheet_name="Guide", index=False)
             # Clean columns for valid addresses
             # Include passthrough columns and original address column for valid sheet
             valid_cols = []

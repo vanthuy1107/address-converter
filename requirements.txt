@@ -1,0 +1,9 @@
+# vietnamadminunits library (from setup.py)
+shapely
+geopy
+unidecode
+tqdm
+
+# Application dependencies (Excel, data processing)
+pandas
+openpyxl

@@ -15,7 +15,7 @@ import config
 config.PROCESSING_MODE = config.ProcessingMode.CONVERT
 config.apply_mode_overrides()
 
-from run_address_processing import main
+from app.run_address_processing import main
 
 if __name__ == "__main__":
     main()

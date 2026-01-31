@@ -341,7 +341,7 @@ The repository includes two entry scripts for batch processing Excel files:
 | **`main_convert_to_2025.py`** | Convert **old** (63-province, before 2025) → **new** (34-province, after 2025) |
 | **`main_convert_to_legacy.py`** | Convert **new** (34-province, after 2025) → **old** (63-province, before 2025) |
 
-Both use the shared core `run_address_processing.py` and the same config (`config.py`). You run the script that matches the conversion you need.
+Both use the shared core in `app/run_address_processing.py` and the same config (`config.py`). You run the script that matches the conversion you need.
 
 #### Features
 
