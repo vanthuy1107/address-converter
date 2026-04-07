@@ -22,7 +22,7 @@ class ProcessingMode(Enum):
 # ============================================================================
 
 # Input file settings
-INPUT_FILE = r"C:\Users\Lenovo1\Downloads\Địa chỉ mới_Syngenta.xlsx"
+INPUT_FILE = r"C:\workspace\address-converter\output\Danh mục điểm TRASAS (1).xlsx"
 ADDRESS_COLUMN = "Địa chỉ"  # Column name with addresses to process
 SHEET_NAME = None  # None = first sheet, or specify sheet name
 

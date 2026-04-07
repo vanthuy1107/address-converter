@@ -794,12 +794,25 @@ def save_outputs(df_output: pd.DataFrame, df_results: pd.DataFrame, base_name: s
     """
     print("Saving output...")
     
-    # Filter columns: include requested passthrough columns from original file
-    passthrough_cols = [col for col in getattr(config, 'PASSTHROUGH_COLUMNS', []) if col in df_output.columns]
+    # Keep all original input columns, then append parsed/result columns.
+    result_cols = set(df_results.columns.tolist())
+    original_cols = [
+        col for col in df_output.columns
+        if col != 'row_index' and col not in result_cols and not col.endswith('_result')
+    ]
+    passthrough_cols = [col for col in getattr(config, 'PASSTHROUGH_COLUMNS', []) if col in original_cols]
     base_cols = [col for col in config.OUTPUT_COLUMNS if col in df_output.columns]
-    # Preserve order, deduplicate with passthrough first
+    preferred_result_cols = [
+        col for col in base_cols + ['original_address', 'cleaned_address', 'parse_mode', 'parse_success', 'skip_reason']
+        if col in df_output.columns
+    ]
+    remaining_result_cols = [
+        col for col in df_output.columns
+        if col != 'row_index' and col not in original_cols and col not in preferred_result_cols and not col.endswith('_result')
+    ]
+    # Preserve order, deduplicate with original columns first
     ordered_cols = []
-    for col in passthrough_cols + base_cols:
+    for col in original_cols + preferred_result_cols + remaining_result_cols:
         if col not in ordered_cols:
             ordered_cols.append(col)
     df_final = df_output[ordered_cols].copy()
@@ -822,17 +835,14 @@ def save_outputs(df_output: pd.DataFrame, df_results: pd.DataFrame, base_name: s
             df_guide = pd.DataFrame(guide_rows, columns=["Column", "Meaning"])
             df_guide.to_excel(writer, sheet_name="Guide", index=False)
             # Clean columns for valid addresses
-            # Include passthrough columns and original address column for valid sheet
+            # Include all original columns first, then parsed/result columns.
             valid_cols = []
-            # Add passthrough columns first
-            for col in passthrough_cols:
+            # Prioritize user-requested passthrough columns, then other original columns.
+            for col in passthrough_cols + original_cols:
                 if col not in valid_cols:
                     valid_cols.append(col)
-            # Add original address column (Địa chỉ)
-            if config.ADDRESS_COLUMN in df_valid.columns and config.ADDRESS_COLUMN not in valid_cols:
-                valid_cols.append(config.ADDRESS_COLUMN)
-            # Add base columns (parsed results)
-            for col in base_cols:
+            # Add parsed/result columns.
+            for col in preferred_result_cols + remaining_result_cols:
                 if col not in valid_cols:
                     valid_cols.append(col)
             valid_clean = df_valid[valid_cols].drop(columns=['parse_success', 'skip_reason'], errors='ignore').copy()
@@ -884,14 +894,14 @@ def save_outputs(df_output: pd.DataFrame, df_results: pd.DataFrame, base_name: s
             
             valid_clean.to_excel(writer, sheet_name=config.SHEET_VALID_NAME, index=False)
             
-            # Clean columns for skipped addresses - include passthrough columns
+            # Clean columns for skipped addresses - keep all original columns plus debug info.
             if len(df_skipped_full) > 0:
-                # Build list of columns to include (in order of preference)
+                # Build list of columns to include (all original columns first)
                 skip_cols = []
-                for col in passthrough_cols + ['STT', 'Mã địa chỉ', 'Tên địa chỉ', config.ADDRESS_COLUMN, 'original_address', 
-                           'cleaned_address', 'skip_reason']:
+                for col in passthrough_cols + original_cols + ['original_address', 'cleaned_address', 'parse_mode', 'skip_reason']:
                     if col in df_skipped_full.columns:
-                        skip_cols.append(col)
+                        if col not in skip_cols:
+                            skip_cols.append(col)
                 
                 # Make sure we have at least the address and reason
                 if len(skip_cols) > 0:
